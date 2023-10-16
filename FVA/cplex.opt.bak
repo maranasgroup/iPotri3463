@@ -1,0 +1,6 @@
+optCA = 1E-10
+optCR = 1E-10
+eprhs = 1E-10
+epopt = 1E-10
+iterlim = 1000000
+reslim = 1000000
