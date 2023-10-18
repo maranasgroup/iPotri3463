@@ -43,10 +43,10 @@ $include "LB_H2.txt"
 $include "UB_H2.txt"
 
 	imp_LB(j_kd)	upper bound to impose on the candidate
-$include "impose_LBs.txt"
+$include "impose_LBs_H2.txt"
 
 	imp_UB(j_kd)	upper bound to impose on the candidate
-$include "impose_UBs.txt"
+$include "impose_UBs_H2.txt"
 
 	c(j)					objective vector, used to update objective function
 
