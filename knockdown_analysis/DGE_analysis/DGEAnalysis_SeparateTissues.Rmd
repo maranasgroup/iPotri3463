@@ -1,0 +1,161 @@
+---
+title: "Differential Gene Expression Analysis using EdgeR"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+# Tissue datasets are processed separately
+```{r}
+library(baySeq)
+library(edgeR)
+seqdata = read.delim("/Users/jzs6897/Downloads/Supplementary\ File\ 29.txt")
+row.names(seqdata) = seqdata[,1]
+tmp = seqdata[2:4]
+tmp2 = seqdata[47:49]
+leaf = cbind(tmp,tmp2)
+
+tmp = seqdata[5:7]
+tmp2 = seqdata[50:52]
+root = cbind(tmp,tmp2)
+
+tmp = seqdata[8:10]
+tmp2 = seqdata[53:55]
+stem = cbind(tmp,tmp2)
+L_groups = c("LCtrl","LCtrl","LCtrl","LDro","LDro","LDro")
+R_groups = c("RCtrl","RCtrl","RCtrl","RDro","RDro","RDro")
+S_groups = c("SCtrl","SCtrl","SCtrl","SDro","SDro","SDro")
+dL <- DGEList(counts=leaf,group=factor(L_groups))
+dS <- DGEList(counts=stem,group=factor(S_groups))
+dR <- DGEList(counts=root,group=factor(R_groups))
+```
+
+Filtering out genes with very low expression reduces the number of genes to be considered by approximately half
+```{r}
+keep <- rowSums(cpm(dL)>30) >= 3
+nonExp_L = dL[!keep,]
+dL <- dL[keep,]
+keep <- rowSums(cpm(dS)>30) >= 3
+nonExp_S = dS[!keep,]
+dS <- dS[keep,]
+keep <- rowSums(cpm(dR)>30) >= 3
+nonExp_R = dR[!keep,]
+dR <- dR[keep,]
+```
+##Data exploration
+
+Make a plot indicating similarities between the datasets
+```{r}
+dL$samples$lib.size <- colSums(dL$counts)
+dL <- calcNormFactors(dL)
+plotMDS(dL, method="bcv", col=as.numeric(dL$samples$group), labels = dL$samples$group)
+#legend("bottomleft", as.character(unique(d$samples$group)), col=1:3, pch=20)
+```
+
+```{r}
+dS$samples$lib.size <- colSums(dS$counts)
+dS <- calcNormFactors(dS)
+plotMDS(dS, method="bcv", col=as.numeric(dS$samples$group), labels = dS$samples$group)
+#legend("bottomleft", as.character(unique(d$samples$group)), col=1:3, pch=20)
+```
+```{r}
+dR$samples$lib.size <- colSums(dR$counts)
+dR <- calcNormFactors(dR)
+plotMDS(dR, method="bcv", col=as.numeric(dR$samples$group), labels = dR$samples$group)
+```
+
+```{r}
+dL1 <- estimateCommonDisp(dL, verbose=T)
+dL1 <- estimateTagwiseDisp(dL1)
+plotBCV(dL1)
+```
+
+```{r}
+dS1 <- estimateCommonDisp(dS, verbose=T)
+dS1 <- estimateTagwiseDisp(dS1)
+plotBCV(dS1)
+```
+
+```{r}
+dR1 <- estimateCommonDisp(dR, verbose=T)
+dR1 <- estimateTagwiseDisp(dR1)
+plotBCV(dR1)
+```
+## Generalized Linear Model of Dispersion
+
+### Leaf
+```{r}
+design.matL <- model.matrix(~ 0 + dL$samples$group)
+colnames(design.matL) <- levels(dL$samples$group)
+dL2 <- estimateGLMCommonDisp(dL,design.matL)
+dL2 <- estimateGLMTrendedDisp(dL2,design.matL, method="spline")
+dL2 <- estimateGLMTagwiseDisp(dL2,design.matL)
+plotBCV(dL2)
+```
+### Stem
+```{r}
+design.matS <- model.matrix(~ 0 + dS$samples$group)
+colnames(design.matS) <- levels(dS$samples$group)
+dS2 <- estimateGLMCommonDisp(dS,design.matS)
+dS2 <- estimateGLMTrendedDisp(dS2,design.matS, method="spline")
+dS2 <- estimateGLMTagwiseDisp(dS2,design.matS)
+plotBCV(dS2)
+```
+### Root
+```{r}
+design.matR <- model.matrix(~ 0 + dR$samples$group)
+colnames(design.matR) <- levels(dR$samples$group)
+dR2 <- estimateGLMCommonDisp(dR,design.matR)
+dR2 <- estimateGLMTrendedDisp(dR2,design.matR, method="spline")
+dR2 <- estimateGLMTagwiseDisp(dR2,design.matR)
+plotBCV(dR2)
+```
+
+## DGE Analysis
+
+
+### Root
+```{r}
+et_L <- exactTest(dL1, pair=c(1,2)) # compare groups 1 and 2
+et_R <- exactTest(dR1, pair=c(1,2)) # compare groups 1 and 3
+et_S <- exactTest(dS1, pair=c(1,2)) # compare groups 2 and 3
+```
+
+
+```{r}
+de_L <- decideTestsDGE(et_L, adjust.method="BH", p.value=0.05, lfc=1)
+summary(de_L)
+DEtags_L <- rownames(dL)[as.logical(de_L)]
+plotSmear(et_L, de.tags=DEtags_L, main = "Leaf Drought vs Control")
+abline(h = c(-1, 1), col = "blue")
+
+```
+
+```{r}
+de_S <- decideTestsDGE(et_S, adjust.method="BH", p.value=0.05, lfc=1)
+summary(de_S)
+DEtags_S <- rownames(dS)[as.logical(de_S)] 
+plotSmear(et_S, de.tags=DEtags_S, main = "Stem Drought vs Control")
+abline(h = c(-1, 1), col = "blue")
+```
+
+```{r}
+de_R <- decideTestsDGE(et_R, adjust.method="BH", p.value=0.05, lfc=1)
+summary(de_R)
+DEtags_R <- rownames(dR)[as.logical(de_R)]
+plotSmear(et_R, de.tags=DEtags_R, main = "Root Drought vs Control")
+abline(h = c(-1, 1), col = "blue")
+```
+
+
+```{r}
+outR <- topTags(et_R, adjust.method="BH", n=Inf)
+write.csv(outR, file="Root_DEGs.csv")
+outS <- topTags(et_S, adjust.method="BH", n=Inf)
+write.csv(outS, file="Stem_DEGs.csv")
+outL <- topTags(et_L,adjust.method="BH",  n=Inf)
+write.csv(outL, file="Leaf_DEGs.csv")
+```
